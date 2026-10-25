@@ -1,231 +1,163 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
-<title>Clock Tower 3D</title>
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Envio de Arquivo Grande</title>
+<meta name="claude:viewport-fit-sides" content="cover">
 <style>
-*{box-sizing:border-box;margin:0;padding:0;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
-html,body{width:100%;height:100%;overflow:hidden;background:#87ceeb;font-family:Arial,sans-serif}
-#game{position:fixed;inset:0}
-canvas{display:block;width:100%;height:100%}
-#loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;background:#101820;color:white;z-index:20;font-size:22px}
-#loading small{margin-top:10px;opacity:.7;font-size:14px}
-#hud{position:fixed;inset:0;pointer-events:none;z-index:10}
-#menu{position:absolute;top:15px;right:15px;width:52px;height:52px;border:0;border-radius:15px;background:#111c;color:white;font-size:28px;pointer-events:auto}
-#hint{position:absolute;top:16px;left:50%;transform:translateX(-50%);background:#111b;color:white;padding:8px 13px;border-radius:10px;font-size:13px}
-#joystick{position:absolute;left:22px;bottom:35px;width:128px;height:128px;border-radius:50%;background:#ffffff25;border:2px solid #ffffff45;pointer-events:auto}
-#stick{position:absolute;left:37px;top:37px;width:54px;height:54px;border-radius:50%;background:#fff8;border:2px solid #fff}
-.btn{position:absolute;border:0;color:white;background:#111b;border:2px solid #fff5;border-radius:50%;font-weight:bold;pointer-events:auto}
-#jump{right:28px;bottom:90px;width:74px;height:74px;font-size:15px}
-#up{right:115px;bottom:35px;width:58px;height:58px;font-size:13px}
-#down{right:48px;bottom:18px;width:58px;height:58px;font-size:13px}
-#skinMenu{position:fixed;inset:0;background:#0009;z-index:30;display:none;align-items:center;justify-content:center}
-.panel{width:min(92vw,420px);max-height:82vh;overflow:auto;background:#17202a;border:1px solid #ffffff25;border-radius:20px;padding:18px;color:white}
-.panel h2{margin-bottom:14px}
-.skinGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
-.skin{height:100px;border-radius:14px;border:2px solid #ffffff30;background:#273444;color:white;font-weight:bold}
-#close{margin-top:15px;width:100%;height:45px;border:0;border-radius:12px;background:#e9e9e9;color:#111;font-weight:bold}
-@media (min-width:800px){#joystick{bottom:45px}.btn{opacity:.9}}
-</style>
-</head>
-<body>
-<div id="game"></div>
-<div id="loading">Carregando mapa 3D...<small id="loadText">0%</small></div>
-
-<div id="hud">
-  <div id="hint">Arraste a tela para olhar • Analógico para andar</div>
-  <button id="menu">⋯</button>
-  <div id="joystick"><div id="stick"></div></div>
-  <button class="btn" id="jump">PULAR</button>
-  <button class="btn" id="up">SUBIR</button>
-  <button class="btn" id="down">DESCER</button>
-</div>
-
-<div id="skinMenu">
-  <div class="panel">
-    <h2>Menu de Skin</h2>
-    <div class="skinGrid">
-      <button class="skin">SKIN 1</button>
-      <button class="skin">SKIN 2</button>
-      <button class="skin">SKIN 3</button>
-      <button class="skin">SKIN 4</button>
-    </div>
-    <button id="close">FECHAR</button>
-  </div>
-</div>
-
-<script type="importmap">
-{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"}}
-</script>
-
-<script type="module">
-import * as THREE from "three";
-import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
-
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb);
-scene.fog = new THREE.Fog(0x87ceeb, 35, 220);
-
-const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, .05, 500);
-camera.position.set(0, 3, 8);
-
-const renderer = new THREE.WebGLRenderer({antialias:false,powerPreference:"high-performance"});
-renderer.setSize(innerWidth,innerHeight);
-renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
-renderer.outputColorSpace = THREE.SRGBColorSpace;
-document.getElementById("game").appendChild(renderer.domElement);
-
-scene.add(new THREE.HemisphereLight(0xffffff,0x526070,2.0));
-const sun = new THREE.DirectionalLight(0xffffff,2.5);
-sun.position.set(80,120,40);
-scene.add(sun);
-
-const player = new THREE.Group();
-scene.add(player);
-player.position.set(0,2,8);
-
-let yaw=0, pitch=-0.08, velY=0, grounded=false;
-const keys={};
-let joyX=0, joyY=0;
-let flying=false;
-const speed=5.2, flySpeed=7.5, gravity=20, jumpPower=7;
-
-const loader=new GLTFLoader();
-loader.load(
-  "free_fire_clocktower_3d_model_by_rs_ratul.glb",
-  gltf=>{
-    const model=gltf.scene;
-    model.traverse(o=>{
-      if(o.isMesh){
-        o.frustumCulled=true;
-        if(o.material){
-          o.material.side=THREE.FrontSide;
-          if(o.material.map)o.material.map.colorSpace=THREE.SRGBColorSpace;
-        }
-      }
-    });
-    model.scale.setScalar(1);
-    scene.add(model);
-    document.getElementById("loading").style.display="none";
-  },
-  xhr=>{
-    if(xhr.total){
-      document.getElementById("loadText").textContent=Math.round(xhr.loaded/xhr.total*100)+"%";
-    } else {
-      document.getElementById("loadText").textContent="Carregando...";
+  /* Layout: coluna única de celular, um cartão de envio com barra de progresso e log */
+  :root {
+    --bg: #f3f4f1;
+    --surface: #ffffff;
+    --fg: #1d2420;
+    --muted: #5d6a63;
+    --line: #d9ddd6;
+    --accent: #0f7a5a;
+    --accent-fg: #ffffff;
+    --bad: #b3261e;
+    --good: #0f7a5a;
+    --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121815; --surface: #1b231f; --fg: #e8eee9; --muted: #98a69d;
+      --line: #2c3731; --accent: #3fc79b; --accent-fg: #07251a; --bad: #ff8a80; --good: #3fc79b;
+      color-scheme: dark;
     }
-  },
-  err=>{
-    document.getElementById("loadText").textContent="Erro ao carregar o mapa";
-    console.error(err);
   }
-);
+  :root[data-theme="dark"] {
+    --bg: #121815; --surface: #1b231f; --fg: #e8eee9; --muted: #98a69d;
+    --line: #2c3731; --accent: #3fc79b; --accent-fg: #07251a; --bad: #ff8a80; --good: #3fc79b;
+    color-scheme: dark;
+  }
+  body {
+    background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 16px; line-height: 1.5;
+    padding-block: 24px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  main { max-width: 34rem; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+  h1 { font-size: 1.4rem; line-height: 1.2; margin: 0; text-wrap: balance; }
+  p { margin: 0; color: var(--muted); }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  label.pick {
+    display: flex; align-items: center; justify-content: center; text-align: center; min-height: 56px;
+    border: 2px dashed var(--accent); border-radius: 10px; padding: 12px; color: var(--accent); font-weight: 600; cursor: pointer;
+  }
+  input[type=file] { width: 100%; min-height: 56px; font: inherit; padding: 12px; border: 2px dashed var(--accent); border-radius: 10px; background: var(--surface); color: var(--fg); }
+  input[type=file]::file-selector-button { font: inherit; font-weight: 600; min-height: 40px; border: 0; border-radius: 8px; padding: 0 14px; margin-right: 12px; background: var(--accent); color: var(--accent-fg); }
+  .meta { font-family: var(--mono); font-size: 0.85rem; color: var(--muted); overflow-wrap: anywhere; }
+  button {
+    font: inherit; font-weight: 600; min-height: 48px; border: 0; border-radius: 10px; padding: 0 16px;
+    background: var(--accent); color: var(--accent-fg); cursor: pointer;
+  }
+  button:disabled { opacity: 0.45; cursor: default; }
+  button:focus-visible { outline: 3px solid var(--fg); outline-offset: 2px; }
+  .bar { height: 12px; background: var(--line); border-radius: 6px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  .status { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .ok { color: var(--good); } .err { color: var(--bad); }
+  ol { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-family: var(--mono); font-size: 0.8rem; max-height: 14rem; overflow-y: auto; }
+  ol li { display: flex; justify-content: space-between; gap: 8px; }
+  ol li span:first-child { overflow-wrap: anywhere; min-width: 0; }
+</style>
 
-const stick=document.getElementById("stick");
-const joy=document.getElementById("joystick");
-let joyPointer=null;
-function setJoy(e){
-  const r=joy.getBoundingClientRect();
-  let x=e.clientX-(r.left+r.width/2), y=e.clientY-(r.top+r.height/2);
-  const max=37, len=Math.hypot(x,y);
-  if(len>max){x=x/len*max;y=y/len*max}
-  joyX=x/max; joyY=y/max;
-  stick.style.transform=`translate(${x}px,${y}px)`;
-}
-joy.addEventListener("pointerdown",e=>{joyPointer=e.pointerId;joy.setPointerCapture(e.pointerId);setJoy(e)});
-joy.addEventListener("pointermove",e=>{if(e.pointerId===joyPointer)setJoy(e)});
-function resetJoy(){joyPointer=null;joyX=joyY=0;stick.style.transform="translate(0,0)"}
-joy.addEventListener("pointerup",resetJoy);
-joy.addEventListener("pointercancel",resetJoy);
+<main>
+  <h1>Envio de arquivo grande</h1>
+  <p>Escolha o arquivo (por exemplo o <b>gta3.img</b> ou o arquivo compactado). A página corta em pedaços de 12 MB e envia um por um. Não feche a página até terminar.</p>
 
-addEventListener("keydown",e=>{
-  keys[e.code]=true;
-  if(e.code==="Space")jump();
-});
-addEventListener("keyup",e=>keys[e.code]=false);
+  <section class="card" id="unavail" hidden>
+    <b class="err">Envio indisponível nesta tela.</b>
+    <p>Abra este link logado na sua conta, no mesmo app onde o Claude está aberto.</p>
+  </section>
 
-function jump(){
-  if(flying)return;
-  if(grounded){velY=jumpPower;grounded=false}
-}
-document.getElementById("jump").addEventListener("pointerdown",jump);
+  <section class="card" id="box">
+    <input type="file" id="file">
+    <div class="meta" id="info">Nenhum arquivo escolhido.</div>
+    <button id="go" disabled>Enviar</button>
+    <div class="bar" aria-hidden="true"><i id="fill"></i></div>
+    <div class="status" id="status" role="status">Aguardando.</div>
+    <ol id="log" aria-label="Pedaços enviados"></ol>
+  </section>
+</main>
 
-document.getElementById("up").addEventListener("pointerdown",()=>keys.up=true);
-document.getElementById("up").addEventListener("pointerup",()=>keys.up=false);
-document.getElementById("up").addEventListener("pointercancel",()=>keys.up=false);
-document.getElementById("down").addEventListener("pointerdown",()=>keys.down=true);
-document.getElementById("down").addEventListener("pointerup",()=>keys.down=false);
-document.getElementById("down").addEventListener("pointercancel",()=>keys.down=false);
+<script>
+(function () {
+  var CHUNK = 12 * 1024 * 1024;
+  var fileEl = document.getElementById('file'), info = document.getElementById('info'),
+      go = document.getElementById('go'), fill = document.getElementById('fill'),
+      statusEl = document.getElementById('status'), log = document.getElementById('log'),
+      unavail = document.getElementById('unavail'), box = document.getElementById('box');
+  var assets = null, file = null, running = false;
 
-let lookId=null,lastX=0,lastY=0;
-renderer.domElement.addEventListener("pointerdown",e=>{
-  if(e.clientX<160 && e.clientY>innerHeight-180)return;
-  lookId=e.pointerId;lastX=e.clientX;lastY=e.clientY;
-  renderer.domElement.setPointerCapture(e.pointerId);
-});
-renderer.domElement.addEventListener("pointermove",e=>{
-  if(e.pointerId!==lookId)return;
-  const dx=e.clientX-lastX,dy=e.clientY-lastY;
-  yaw-=dx*.006;
-  pitch-=dy*.005;
-  pitch=Math.max(-1.35,Math.min(1.35,pitch));
-  lastX=e.clientX;lastY=e.clientY;
-});
-renderer.domElement.addEventListener("pointerup",e=>{if(e.pointerId===lookId)lookId=null});
-renderer.domElement.addEventListener("pointercancel",e=>{if(e.pointerId===lookId)lookId=null});
+  function mb(n) { return (n / 1048576).toFixed(1) + ' MB'; }
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
-document.getElementById("menu").onclick=()=>document.getElementById("skinMenu").style.display="flex";
-document.getElementById("close").onclick=()=>document.getElementById("skinMenu").style.display="none";
-
-function updateCamera(){
-  camera.position.copy(player.position);
-  camera.position.y+=1.55;
-  camera.rotation.order="YXZ";
-  camera.rotation.y=yaw;
-  camera.rotation.x=pitch;
-}
-
-const clock=new THREE.Clock();
-function animate(){
-  requestAnimationFrame(animate);
-  const dt=Math.min(clock.getDelta(),.033);
-
-  let f=-joyY, s=joyX;
-  if(keys.KeyW)f+=1;if(keys.KeyS)f-=1;
-  if(keys.KeyA)s-=1;if(keys.KeyD)s+=1;
-
-  const forward=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));
-  const right=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));
-  const move=new THREE.Vector3().addScaledVector(forward,f).addScaledVector(right,s);
-  if(move.lengthSq()>1)move.normalize();
-
-  const sp=flying?flySpeed:speed;
-  player.position.addScaledVector(move,sp*dt);
-
-  if(flying){
-    if(keys.up || keys.Space || document.getElementById("jump").matches(":active"))player.position.y+=sp*dt;
-    if(keys.down)player.position.y-=sp*dt;
-    velY=0;
-    player.position.y=Math.max(.5,player.position.y);
-  }else{
-    velY-=gravity*dt;
-    player.position.y+=velY*dt;
-    if(player.position.y<=1){
-      player.position.y=1;velY=0;grounded=true;
-    }else grounded=false;
+  function toBase64(blob) {
+    return new Promise(function (res, rej) {
+      var fr = new FileReader();
+      fr.onload = function () { var s = String(fr.result); res(s.slice(s.indexOf(',') + 1)); };
+      fr.onerror = function () { rej(fr.error); };
+      fr.readAsDataURL(blob);
+    });
   }
 
-  updateCamera();
-  renderer.render(scene,camera);
-}
-animate();
+  fileEl.addEventListener('change', function () {
+    file = fileEl.files && fileEl.files[0] || null;
+    if (!file) return;
+    var n = Math.ceil(file.size / CHUNK);
+    info.textContent = file.name + ' · ' + mb(file.size) + ' · ' + n + ' pedaços';
+    go.disabled = !assets || running;
+    fill.style.width = '0'; log.textContent = '';
+    statusEl.className = 'status'; statusEl.textContent = 'Pronto para enviar.';
+  });
 
-addEventListener("resize",()=>{
-  camera.aspect=innerWidth/innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth,innerHeight);
-});
+  async function uploadPart(text) {
+    var blob = new Blob([text], { type: 'text/plain' });
+    for (var attempt = 0; attempt < 3; attempt++) {
+      try { return await assets.upload(blob, { type: 'text/plain' }); }
+      catch (e) {
+        var code = e && e.code;
+        if ((code === 'store_unavailable' || code === 'rate_limited') && attempt < 2) { await sleep(2500 * (attempt + 1)); continue; }
+        throw e;
+      }
+    }
+  }
+
+  go.addEventListener('click', async function () {
+    if (!file || !assets || running) return;
+    running = true; go.disabled = true; fileEl.disabled = true;
+    var n = Math.ceil(file.size / CHUNK), stamp = Date.now().toString(36);
+    log.textContent = '';
+    try {
+      for (var i = 0; i < n; i++) {
+        statusEl.className = 'status';
+        statusEl.textContent = 'Enviando pedaço ' + (i + 1) + ' de ' + n + '…';
+        var slice = file.slice(i * CHUNK, Math.min(file.size, (i + 1) * CHUNK));
+        var b64 = await toBase64(slice);
+        var header = 'BCPART|' + stamp + '|' + file.name + '|' + (i + 1) + '|' + n + '|' + file.size + '\n';
+        var r = await uploadPart(header + b64);
+        var li = document.createElement('li');
+        var a = document.createElement('span'), b = document.createElement('span');
+        a.textContent = (i + 1) + '/' + n; b.textContent = mb(r.sizeBytes); b.className = 'ok';
+        li.append(a, b); log.append(li); log.scrollTop = log.scrollHeight;
+        fill.style.width = (((i + 1) / n) * 100).toFixed(1) + '%';
+      }
+      statusEl.className = 'status ok';
+      statusEl.textContent = 'Pronto. Todos os ' + n + ' pedaços foram enviados. Pode voltar ao chat e avisar o Claude.';
+    } catch (e) {
+      statusEl.className = 'status err';
+      var code = e && e.code ? e.code : 'erro';
+      statusEl.textContent = 'Falhou (' + code + '). ' + (code === 'quota_or_state' ? 'O espaço de armazenamento acabou.' : 'Toque em Enviar para tentar de novo.');
+      go.disabled = false;
+    }
+    running = false; fileEl.disabled = false;
+  });
+
+  (async function () {
+    try { assets = window.claude && await window.claude.use('assets'); } catch (e) { assets = null; }
+    if (!assets) { unavail.hidden = false; go.disabled = true; }
+    else if (file) go.disabled = false;
+  })();
+})();
 </script>
-</body>
-</html>
+
+</body></html>
